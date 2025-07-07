@@ -1,0 +1,485 @@
+# 📚 Documentation Standards - Korean OCR Pipeline
+
+## 🎯 MANDATORY DOCUMENTATION PRINCIPLES
+
+### 1. **Korean Context Priority - ABSOLUTE REQUIREMENT**
+```markdown
+# ✅ REQUIRED: Always emphasize Korean-specific features
+## Korean Text Recognition Features
+
+This system is **specifically optimized for Korean text processing** with:
+- **한글 특화 전처리**: Preserve Korean character strokes and enhance jongseong
+- **앙상블 OCR**: Combined EasyOCR + PaddleOCR for maximum Korean accuracy
+- **받침 강조**: Enhanced final consonant recognition
+- **자모 분리 방지**: Prevents Korean character decomposition
+
+### Performance Metrics (Korean Text)
+- **정확도**: 90%+ for printed Korean documents
+- **처리 속도**: 10.26초/페이지 (current), 목표 5초/페이지
+- **지원 언어**: 한국어 (primary), English (secondary)
+
+# ❌ FORBIDDEN: Generic OCR documentation without Korean specifics
+## OCR Features
+- Text recognition
+- Multiple languages supported
+- Fast processing
+# This lacks Korean-specific context and optimization details
+```
+
+### 2. **Comprehensive Usage Examples - MANDATORY**
+```markdown
+# ✅ REQUIRED: Complete, runnable examples with Korean text
+## 🚀 Quick Start
+
+### Basic Korean Text Recognition
+```python
+from main import KoreanOCRPipeline
+
+# Initialize pipeline
+pipeline = KoreanOCRPipeline()
+
+# Process Korean document
+result = pipeline.process_image('korean_document.jpg')
+
+# Results
+print(f"인식된 텍스트: {result['text']}")
+print(f"신뢰도: {result['confidence']:.2f}")
+print(f"처리 시간: {result['processing_time']:.2f}초")
+
+# Expected output:
+# 인식된 텍스트: 안녕하세요. 한글 문서입니다.
+# 신뢰도: 0.95
+# 처리 시간: 2.33초
+```
+
+### Advanced Korean Processing
+```python
+# Korean-specific preprocessing
+from preprocessor import KoreanOCRPreprocessor
+
+preprocessor = KoreanOCRPreprocessor()
+
+# Apply Korean optimizations
+processed_image = preprocessor.preprocess_korean(image)
+enhanced_image = preprocessor.enhance_jongseong(processed_image)
+final_image = preprocessor.preserve_korean_strokes(enhanced_image)
+
+# Process with ensemble
+pipeline = KoreanOCRPipeline(use_ensemble=True)
+result = pipeline.process_image(final_image)
+```
+
+# ❌ FORBIDDEN: Incomplete or non-runnable examples
+## Usage
+```python
+pipeline = OCRPipeline()
+result = pipeline.process(image)  # Missing imports, incomplete code
+```
+```
+
+### 3. **Performance Documentation - SPECIFIC METRICS**
+```markdown
+# ✅ REQUIRED: Detailed performance data with benchmarks
+## 📊 Performance Metrics
+
+### Current Performance (실측 데이터)
+| Metric | Current | PRD Target | Status |
+|--------|---------|------------|---------|
+| **처리 속도** | 10.26초/페이지 | 5초/페이지 | ⚠️ 51% 달성 |
+| **정확도** | 90%+ (추정) | 95% | ⚠️ 양호 |
+| **성공률** | 100% | 95% | ✅ 초과 달성 |
+| **메모리 사용량** | ~500MB | <1GB | ✅ 양호 |
+
+### Performance by Image Type
+```python
+# Benchmark results for different Korean document types
+PERFORMANCE_BENCHMARKS = {
+    "printed_korean": {
+        "accuracy": 0.95,
+        "processing_time": 8.2,
+        "confidence": 0.92
+    },
+    "handwritten_korean": {
+        "accuracy": 0.78,
+        "processing_time": 12.5,
+        "confidence": 0.85
+    },
+    "mixed_korean_english": {
+        "accuracy": 0.88,
+        "processing_time": 9.8,
+        "confidence": 0.89
+    }
+}
+```
+
+### Performance Testing
+```bash
+# Run performance benchmark
+python benchmark.py --test-korean-accuracy
+python benchmark.py --test-processing-speed
+python benchmark.py --test-memory-usage
+```
+
+# ❌ FORBIDDEN: Vague performance claims without data
+## Performance
+- Fast processing
+- High accuracy
+- Good performance
+# No specific metrics, benchmarks, or Korean-specific data
+```
+
+### 4. **Error Handling Documentation - COMPREHENSIVE**
+```markdown
+# ✅ REQUIRED: Complete error scenarios and solutions
+## 🚨 Troubleshooting Guide
+
+### Common Issues with Korean Text
+
+#### 1. Poor Korean Character Recognition
+**Problem**: Korean characters appear as "?" or incorrect symbols
+```python
+# ❌ Incorrect: Using default settings
+pipeline = KoreanOCRPipeline()  # No Korean optimization
+
+# ✅ Correct: Enable Korean-specific features
+pipeline = KoreanOCRPipeline(
+    use_korean_preprocessing=True,
+    enhance_jongseong=True,
+    preserve_strokes=True
+)
+```
+
+**Solution**:
+1. Enable Korean preprocessing: `use_korean_preprocessing=True`
+2. Check image quality: minimum 300 DPI for Korean text
+3. Ensure proper font rendering in test images
+
+#### 2. Slow Processing Speed
+**Problem**: Processing takes >15 seconds per image
+```python
+# Check GPU availability
+from gpu_config import GPUConfig
+gpu_config = GPUConfig()
+print(f"GPU available: {gpu_config.is_available()}")
+print(f"GPU type: {gpu_config.get_gpu_type()}")
+
+# Enable GPU acceleration
+pipeline = KoreanOCRPipeline(use_gpu=True)
+```
+
+**Solutions**:
+1. Enable GPU: `use_gpu=True` (requires CUDA or MPS)
+2. Reduce image size: `max_size=(1920, 1080)`
+3. Use single engine for simple text: `use_ensemble=False`
+
+#### 3. Memory Issues
+**Problem**: Out of memory errors during batch processing
+```python
+# ✅ Memory-efficient batch processing
+def process_batch_safely(image_paths, batch_size=4):
+    results = []
+    
+    for i in range(0, len(image_paths), batch_size):
+        batch = image_paths[i:i + batch_size]
+        batch_results = pipeline.process_batch(batch)
+        results.extend(batch_results)
+        
+        # Explicit memory cleanup
+        import gc
+        gc.collect()
+    
+    return results
+```
+
+### Error Codes and Solutions
+| Error Code | Description | Solution |
+|------------|-------------|----------|
+| `OCR_001` | Korean preprocessing failed | Check image format and size |
+| `OCR_002` | GPU initialization failed | Install CUDA or use CPU mode |
+| `OCR_003` | Memory exhaustion | Reduce batch size or image resolution |
+| `OCR_004` | Invalid image format | Convert to JPG/PNG format |
+
+# ❌ FORBIDDEN: Generic error handling without Korean context
+## Errors
+- Check your input
+- Try again
+- Contact support
+# No specific error codes, Korean-specific issues, or actionable solutions
+```
+
+### 5. **API Documentation - COMPLETE REFERENCE**
+```markdown
+# ✅ REQUIRED: Complete API documentation with Korean examples
+## 📖 API Reference
+
+### KoreanOCRPipeline Class
+
+#### Constructor
+```python
+KoreanOCRPipeline(
+    use_gpu: bool = True,
+    use_ensemble: bool = True,
+    use_yolo: bool = False,
+    confidence_threshold: float = 0.8,
+    korean_preprocessing: bool = True
+)
+```
+
+**Parameters**:
+- `use_gpu` (bool): Enable GPU acceleration for faster processing
+- `use_ensemble` (bool): Use EasyOCR + PaddleOCR ensemble for higher accuracy
+- `use_yolo` (bool): Enable YOLO text detection for complex layouts
+- `confidence_threshold` (float): Minimum confidence score (0.0-1.0)
+- `korean_preprocessing` (bool): Apply Korean-specific preprocessing
+
+**Example**:
+```python
+# High-accuracy Korean processing
+pipeline = KoreanOCRPipeline(
+    use_gpu=True,
+    use_ensemble=True,
+    korean_preprocessing=True
+)
+
+# Fast processing for simple Korean text
+pipeline = KoreanOCRPipeline(
+    use_gpu=True,
+    use_ensemble=False,
+    confidence_threshold=0.7
+)
+```
+
+#### process_image Method
+```python
+def process_image(self, image_path: str) -> Dict[str, Union[str, float, List]]
+```
+
+**Parameters**:
+- `image_path` (str): Path to image file (JPG, PNG, TIFF supported)
+
+**Returns**:
+```python
+{
+    "text": str,                    # 인식된 전체 텍스트
+    "confidence": float,           # 평균 신뢰도 (0.0-1.0)
+    "processing_time": float,      # 처리 시간 (초)
+    "detailed_results": List[Dict] # 영역별 상세 결과
+}
+```
+
+**Example**:
+```python
+result = pipeline.process_image('korean_document.jpg')
+
+print(f"텍스트: {result['text']}")
+print(f"신뢰도: {result['confidence']:.2f}")
+print(f"처리 시간: {result['processing_time']:.2f}초")
+
+# 영역별 상세 정보
+for i, region in enumerate(result['detailed_results']):
+    print(f"영역 {i+1}: {region['text']}")
+    print(f"  위치: {region['bbox']}")
+    print(f"  신뢰도: {region['confidence']:.2f}")
+```
+
+# ❌ FORBIDDEN: Incomplete API documentation
+## API
+### process_image
+Processes an image and returns text.
+
+**Parameters**: image
+**Returns**: result
+# Missing types, Korean examples, detailed return structure
+```
+
+### 6. **Installation and Setup - FOOLPROOF GUIDE**
+```markdown
+# ✅ REQUIRED: Complete installation guide with Korean environment
+## 🛠️ Installation Guide
+
+### System Requirements
+- **Python**: 3.8+ (3.9+ recommended for Korean font support)
+- **Memory**: 4GB+ RAM (8GB+ recommended for batch processing)
+- **Storage**: 2GB+ free space for models and dependencies
+- **GPU**: Optional but recommended (CUDA 11.0+ or Apple Silicon)
+
+### Quick Installation (Recommended)
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd Ocr2
+
+# 2. Run automated setup
+chmod +x setup.sh
+./setup.sh
+
+# 3. Test Korean OCR
+python main_simple.py test_korean.jpg
+```
+
+### Manual Installation
+```bash
+# 1. Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Mac/Linux
+# or
+venv\Scripts\activate     # Windows
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Download Korean language models
+python -c "import easyocr; easyocr.Reader(['ko', 'en'])"
+
+# 4. Test installation
+python -c "from main import KoreanOCRPipeline; print('Installation successful!')"
+```
+
+### Korean Font Setup (Optional)
+```bash
+# Install Korean fonts for better test image generation
+# Ubuntu/Debian
+sudo apt-get install fonts-nanum fonts-nanum-coding
+
+# macOS
+brew install font-nanum-gothic
+
+# Windows
+# Download and install NanumGothic font manually
+```
+
+### GPU Setup
+```bash
+# CUDA (NVIDIA)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Apple Silicon (MPS)
+pip install torch torchvision torchaudio
+
+# Verify GPU setup
+python gpu_config.py
+```
+
+### Verification
+```bash
+# Run comprehensive test
+python test_ocr.py -v
+
+# Run Korean-specific tests
+python -m pytest test_ocr.py::test_korean_text_recognition -v
+
+# Run performance benchmark
+python benchmark.py --quick-test
+```
+
+# ❌ FORBIDDEN: Incomplete installation instructions
+## Installation
+```bash
+pip install -r requirements.txt
+python main.py
+```
+# Missing system requirements, Korean setup, GPU configuration, verification
+```
+
+## 🎯 DOCUMENTATION STRUCTURE REQUIREMENTS
+
+### 1. **README.md Structure - MANDATORY SECTIONS**
+```markdown
+# 🇰🇷 Korean OCR Pipeline
+> Korean-specific tagline and value proposition
+
+## 📋 Project Status
+- Current phase and completion percentage
+- Performance metrics with Korean benchmarks
+- Last update date
+
+## 📚 Documentation
+- Links to docs/ folder
+- Quick access to key documents
+
+## ✨ Key Features
+- Korean-specific features highlighted
+- Technical capabilities with Korean examples
+
+## 🚀 Quick Start
+- 3-step installation
+- Basic usage with Korean text
+- Expected results
+
+## 📖 Detailed Usage
+- Python API examples
+- Command-line interface
+- Advanced configurations
+
+## 📊 Performance
+- Benchmarks with Korean text
+- PRD compliance status
+- Optimization recommendations
+
+## 🔧 Advanced Usage
+- Korean preprocessing options
+- Ensemble configuration
+- YOLO integration
+
+## 🧪 Testing
+- How to run tests
+- Korean-specific test cases
+- Performance validation
+
+## 🚨 Troubleshooting
+- Common Korean text issues
+- Performance problems
+- Error resolution
+
+## 📚 Documentation
+- Complete documentation structure
+- Links to detailed guides
+
+## 🤝 Contributing
+- Development guidelines
+- Korean text testing requirements
+- Code quality standards
+```
+
+### 2. **docs/ Folder Structure - COMPREHENSIVE**
+```
+docs/
+├── README.md              # 📚 Documentation center
+├── PRD.md                 # 📋 Product requirements
+├── CHECKLIST.md           # ✅ Comprehensive progress
+├── QUICK_CHECKLIST.md     # 🚀 Quick status
+├── DAILY_CHECKLIST.md     # 📅 Daily tasks
+├── API_REFERENCE.md       # 📖 Complete API docs
+├── KOREAN_GUIDE.md        # 🇰🇷 Korean-specific guide
+├── PERFORMANCE_GUIDE.md   # 📊 Performance optimization
+├── TROUBLESHOOTING.md     # 🚨 Problem resolution
+└── CONTRIBUTING.md        # 🤝 Development guidelines
+```
+
+## 🎯 MANDATORY DOCUMENTATION CHECKLIST
+
+### ✅ BEFORE EVERY COMMIT:
+1. **Korean context**: All docs emphasize Korean-specific features
+2. **Runnable examples**: All code examples work without modification
+3. **Performance data**: Current metrics and benchmarks included
+4. **Error handling**: Comprehensive troubleshooting guide
+5. **API completeness**: All public methods documented
+6. **Installation guide**: Foolproof setup instructions
+7. **Cross-references**: Proper links between documents
+
+### ❌ DOCUMENTATION BLOCKERS:
+1. **Generic OCR docs** without Korean specifics
+2. **Broken code examples** that don't run
+3. **Missing performance data** or vague metrics
+4. **Incomplete API docs** without Korean examples
+5. **Outdated information** not reflecting current state
+6. **Broken internal links** between documents
+7. **Missing Korean language support** in examples
+
+---
+
+**Remember**: Documentation is the **first impression** of your Korean OCR system. Comprehensive, Korean-focused documentation demonstrates professionalism and helps users succeed with Korean text processing.
+description:
+globs:
+alwaysApply: false
+---

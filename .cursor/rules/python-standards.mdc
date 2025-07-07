@@ -1,0 +1,580 @@
+# 🐍 Python Standards for Korean OCR Pipeline
+
+## 🎯 MANDATORY PYTHON CONVENTIONS
+
+### 1. **Import Organization - STRICT ORDER**
+```python
+# ✅ REQUIRED: Standard library imports first
+import os
+import sys
+import time
+import logging
+from typing import Dict, List, Optional, Union, Tuple
+from pathlib import Path
+
+# ✅ REQUIRED: Third-party imports second
+import cv2
+import numpy as np
+import torch
+import easyocr
+from PIL import Image
+import concurrent.futures
+
+# ✅ REQUIRED: Local imports last
+from preprocessor import KoreanOCRPreprocessor
+from ensemble_ocr import EnsembleOCR
+from utils import calculate_confidence, visualize_results
+
+# ❌ FORBIDDEN: Mixed import styles
+from os import *  # Never use star imports
+import cv2, numpy, torch  # Never use comma-separated imports
+```
+
+### 2. **Function Signatures - MANDATORY TYPE HINTS**
+```python
+# ✅ REQUIRED: Complete type annotations
+def process_korean_text(
+    image: np.ndarray,
+    confidence_threshold: float = 0.8,
+    use_ensemble: bool = True,
+    preprocessing_steps: Optional[List[str]] = None
+) -> Dict[str, Union[str, float, List[Dict]]]:
+    """
+    Process Korean text with comprehensive type safety.
+    
+    Args:
+        image: Input image as numpy array (H, W, C) or (H, W)
+        confidence_threshold: Minimum confidence for text acceptance
+        use_ensemble: Whether to use ensemble OCR approach
+        preprocessing_steps: List of preprocessing step names to apply
+        
+    Returns:
+        Dictionary with keys: 'text', 'confidence', 'processing_time', 'regions'
+        
+    Raises:
+        ValueError: If image is invalid or preprocessing fails
+        RuntimeError: If OCR engines are not available
+    """
+    pass
+
+# ❌ FORBIDDEN: Missing type hints
+def process_image(image, threshold=0.8):  # No type information
+    pass
+```
+
+### 3. **Error Handling - COMPREHENSIVE PATTERNS**
+```python
+# ✅ REQUIRED: Specific exception handling with context
+def load_and_process_image(image_path: str) -> Dict[str, Union[str, float]]:
+    """Load and process image with comprehensive error handling."""
+    
+    # Input validation
+    if not isinstance(image_path, str):
+        raise TypeError(f"Expected string path, got {type(image_path)}")
+    
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image file not found: {image_path}")
+    
+    try:
+        # Load image
+        image = cv2.imread(image_path)
+        if image is None:
+            raise ValueError(f"Cannot read image file: {image_path}")
+        
+        # Validate image properties
+        if len(image.shape) not in [2, 3]:
+            raise ValueError(f"Invalid image dimensions: {image.shape}")
+        
+        # Process image
+        result = process_image_internal(image)
+        
+        # Validate result
+        if not isinstance(result, dict) or 'text' not in result:
+            raise RuntimeError("OCR processing returned invalid result")
+        
+        return result
+        
+    except cv2.error as e:
+        raise RuntimeError(f"OpenCV error processing {image_path}: {str(e)}") from e
+    except Exception as e:
+        # Log unexpected errors with full context
+        logger.error(f"Unexpected error processing {image_path}: {str(e)}", 
+                    exc_info=True)
+        raise RuntimeError(f"Failed to process {image_path}: {str(e)}") from e
+
+# ❌ FORBIDDEN: Generic exception handling
+def bad_process_image(image_path):
+    try:
+        return some_processing(image_path)
+    except:  # Too generic
+        return None  # Silent failure
+```
+
+### 4. **Class Design - SOLID PRINCIPLES**
+```python
+# ✅ REQUIRED: Well-structured classes with clear responsibilities
+class KoreanOCRProcessor:
+    """
+    Single responsibility: Process Korean text with OCR engines.
+    
+    This class handles the core OCR processing logic while delegating
+    preprocessing to KoreanOCRPreprocessor and result formatting to
+    separate utility functions.
+    """
+    
+    def __init__(self, 
+                 use_gpu: bool = True,
+                 confidence_threshold: float = 0.8,
+                 max_workers: int = 4) -> None:
+        """
+        Initialize OCR processor with configuration validation.
+        
+        Args:
+            use_gpu: Whether to use GPU acceleration
+            confidence_threshold: Minimum confidence for text acceptance
+            max_workers: Maximum number of parallel workers
+            
+        Raises:
+            ValueError: If configuration parameters are invalid
+            RuntimeError: If required OCR engines cannot be initialized
+        """
+        self._validate_config(use_gpu, confidence_threshold, max_workers)
+        
+        self.use_gpu = use_gpu
+        self.confidence_threshold = confidence_threshold
+        self.max_workers = max_workers
+        
+        # Initialize OCR engines with error handling
+        self._initialize_ocr_engines()
+        
+        # Initialize preprocessor
+        self.preprocessor = KoreanOCRPreprocessor()
+        
+        # Performance tracking
+        self.processing_stats = {
+            'total_processed': 0,
+            'total_time': 0.0,
+            'error_count': 0
+        }
+    
+    def _validate_config(self, use_gpu: bool, confidence_threshold: float, 
+                        max_workers: int) -> None:
+        """Validate configuration parameters."""
+        if not isinstance(use_gpu, bool):
+            raise ValueError("use_gpu must be boolean")
+        
+        if not 0.0 <= confidence_threshold <= 1.0:
+            raise ValueError("confidence_threshold must be between 0.0 and 1.0")
+        
+        if not isinstance(max_workers, int) or max_workers < 1:
+            raise ValueError("max_workers must be positive integer")
+    
+    def _initialize_ocr_engines(self) -> None:
+        """Initialize OCR engines with proper error handling."""
+        try:
+            self.easyocr_reader = easyocr.Reader(['ko', 'en'], gpu=self.use_gpu)
+            self.paddleocr_reader = PaddleOCR(use_angle_cls=True, lang='korean')
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize OCR engines: {str(e)}") from e
+    
+    def process_image(self, image: np.ndarray) -> Dict[str, Union[str, float, List]]:
+        """
+        Process single image with comprehensive error handling and metrics.
+        
+        Args:
+            image: Input image as numpy array
+            
+        Returns:
+            Processing result with guaranteed structure
+            
+        Raises:
+            ValueError: If image is invalid
+            RuntimeError: If processing fails
+        """
+        start_time = time.time()
+        
+        try:
+            # Validate input
+            if not isinstance(image, np.ndarray):
+                raise ValueError("Input must be numpy array")
+            
+            if image.size == 0:
+                raise ValueError("Empty image provided")
+            
+            # Preprocess image
+            processed_image = self.preprocessor.preprocess_korean(image)
+            
+            # Run OCR ensemble
+            result = self._run_ocr_ensemble(processed_image)
+            
+            # Add performance metrics
+            processing_time = time.time() - start_time
+            result['processing_time'] = processing_time
+            
+            # Update statistics
+            self._update_stats(processing_time, success=True)
+            
+            return result
+            
+        except Exception as e:
+            # Update error statistics
+            self._update_stats(time.time() - start_time, success=False)
+            raise RuntimeError(f"Image processing failed: {str(e)}") from e
+    
+    def _update_stats(self, processing_time: float, success: bool) -> None:
+        """Update processing statistics."""
+        self.processing_stats['total_processed'] += 1
+        self.processing_stats['total_time'] += processing_time
+        
+        if not success:
+            self.processing_stats['error_count'] += 1
+    
+    def get_performance_metrics(self) -> Dict[str, float]:
+        """Get current performance metrics."""
+        total = self.processing_stats['total_processed']
+        
+        if total == 0:
+            return {'avg_time': 0.0, 'error_rate': 0.0, 'total_processed': 0}
+        
+        return {
+            'avg_time': self.processing_stats['total_time'] / total,
+            'error_rate': self.processing_stats['error_count'] / total,
+            'total_processed': total
+        }
+
+# ❌ FORBIDDEN: God classes with multiple responsibilities
+class BadOCRProcessor:
+    def __init__(self):
+        # Too many responsibilities
+        self.preprocess_image = lambda x: x  # Preprocessing
+        self.run_ocr = lambda x: x  # OCR processing
+        self.format_output = lambda x: x  # Output formatting
+        self.save_results = lambda x: x  # File I/O
+        self.send_email = lambda x: x  # Email notifications
+        self.update_database = lambda x: x  # Database operations
+```
+
+### 5. **Logging - STRUCTURED AND CONTEXTUAL**
+```python
+# ✅ REQUIRED: Structured logging with context
+import logging
+import json
+from datetime import datetime
+
+class OCRLogger:
+    """Structured logging for OCR operations."""
+    
+    def __init__(self, name: str = 'korean_ocr'):
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.INFO)
+        
+        # Create formatter for structured logs
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+    
+    def log_processing_start(self, image_path: str, config: Dict) -> None:
+        """Log processing start with context."""
+        log_data = {
+            'event': 'processing_start',
+            'image_path': image_path,
+            'config': config,
+            'timestamp': datetime.now().isoformat()
+        }
+        self.logger.info(f"PROCESSING_START: {json.dumps(log_data)}")
+    
+    def log_processing_success(self, image_path: str, result: Dict) -> None:
+        """Log successful processing with metrics."""
+        log_data = {
+            'event': 'processing_success',
+            'image_path': image_path,
+            'processing_time': result.get('processing_time', 0),
+            'confidence': result.get('confidence', 0),
+            'text_length': len(result.get('text', '')),
+            'regions_count': len(result.get('detailed_results', [])),
+            'timestamp': datetime.now().isoformat()
+        }
+        self.logger.info(f"PROCESSING_SUCCESS: {json.dumps(log_data)}")
+    
+    def log_processing_error(self, image_path: str, error: Exception) -> None:
+        """Log processing error with full context."""
+        log_data = {
+            'event': 'processing_error',
+            'image_path': image_path,
+            'error_type': type(error).__name__,
+            'error_message': str(error),
+            'timestamp': datetime.now().isoformat()
+        }
+        self.logger.error(f"PROCESSING_ERROR: {json.dumps(log_data)}")
+
+# ❌ FORBIDDEN: Unstructured logging
+def bad_logging():
+    print("Processing image...")  # Use logging, not print
+    logging.info("Error occurred")  # No context
+    logger.debug(f"Result: {huge_object}")  # Expensive string formatting
+```
+
+### 6. **Performance Optimization - MEMORY & SPEED**
+```python
+# ✅ REQUIRED: Memory-efficient processing
+import gc
+from contextlib import contextmanager
+
+@contextmanager
+def memory_efficient_processing():
+    """Context manager for memory-efficient OCR processing."""
+    try:
+        # Clear any existing GPU memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        yield
+        
+    finally:
+        # Explicit cleanup
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+def process_batch_efficiently(image_paths: List[str], 
+                            batch_size: int = 4) -> List[Dict]:
+    """Process images in memory-efficient batches."""
+    results = []
+    
+    for i in range(0, len(image_paths), batch_size):
+        batch = image_paths[i:i + batch_size]
+        
+        with memory_efficient_processing():
+            batch_results = []
+            
+            for image_path in batch:
+                try:
+                    # Load image
+                    image = cv2.imread(image_path)
+                    if image is None:
+                        raise ValueError(f"Cannot load image: {image_path}")
+                    
+                    # Process image
+                    result = process_single_image(image)
+                    batch_results.append(result)
+                    
+                    # Explicit cleanup for large images
+                    del image
+                    
+                except Exception as e:
+                    batch_results.append({
+                        "error": str(e),
+                        "image_path": image_path,
+                        "text": "",
+                        "confidence": 0.0
+                    })
+            
+            results.extend(batch_results)
+            
+            # Force garbage collection between batches
+            gc.collect()
+    
+    return results
+
+# ❌ FORBIDDEN: Memory-inefficient processing
+def bad_batch_processing(image_paths):
+    all_images = []
+    
+    # Load all images into memory at once
+    for path in image_paths:
+        all_images.append(cv2.imread(path))  # Memory explosion
+    
+    # Process all at once
+    results = []
+    for image in all_images:
+        results.append(process_image(image))  # No error handling
+    
+    return results  # No cleanup
+```
+
+### 7. **Testing Patterns - COMPREHENSIVE COVERAGE**
+```python
+# ✅ REQUIRED: Comprehensive test patterns
+import pytest
+import tempfile
+import numpy as np
+from unittest.mock import Mock, patch, MagicMock
+
+class TestKoreanOCRProcessor:
+    """Comprehensive test suite for Korean OCR processor."""
+    
+    @pytest.fixture
+    def sample_korean_image(self):
+        """Create sample Korean text image for testing."""
+        # Create a simple test image with Korean text
+        image = np.zeros((100, 300, 3), dtype=np.uint8)
+        image.fill(255)  # White background
+        
+        # Add some text-like patterns
+        cv2.rectangle(image, (50, 30), (250, 70), (0, 0, 0), -1)
+        
+        return image
+    
+    @pytest.fixture
+    def ocr_processor(self):
+        """Create OCR processor instance for testing."""
+        with patch('easyocr.Reader'), patch('paddleocr.PaddleOCR'):
+            processor = KoreanOCRProcessor(
+                use_gpu=False,  # Disable GPU for testing
+                confidence_threshold=0.8,
+                max_workers=1
+            )
+            return processor
+    
+    def test_init_valid_config(self):
+        """Test processor initialization with valid configuration."""
+        with patch('easyocr.Reader'), patch('paddleocr.PaddleOCR'):
+            processor = KoreanOCRProcessor(
+                use_gpu=False,
+                confidence_threshold=0.9,
+                max_workers=2
+            )
+            
+            assert processor.use_gpu is False
+            assert processor.confidence_threshold == 0.9
+            assert processor.max_workers == 2
+    
+    def test_init_invalid_config(self):
+        """Test processor initialization with invalid configuration."""
+        with pytest.raises(ValueError, match="confidence_threshold must be"):
+            KoreanOCRProcessor(confidence_threshold=1.5)
+        
+        with pytest.raises(ValueError, match="max_workers must be"):
+            KoreanOCRProcessor(max_workers=0)
+    
+    def test_process_image_success(self, ocr_processor, sample_korean_image):
+        """Test successful image processing."""
+        # Mock OCR results
+        mock_result = {
+            'text': '안녕하세요',
+            'confidence': 0.95,
+            'detailed_results': [
+                {'text': '안녕하세요', 'bbox': [10, 10, 100, 50], 'confidence': 0.95}
+            ]
+        }
+        
+        with patch.object(ocr_processor, '_run_ocr_ensemble', return_value=mock_result):
+            result = ocr_processor.process_image(sample_korean_image)
+            
+            # Validate result structure
+            assert isinstance(result, dict)
+            assert 'text' in result
+            assert 'confidence' in result
+            assert 'processing_time' in result
+            assert 'detailed_results' in result
+            
+            # Validate values
+            assert result['text'] == '안녕하세요'
+            assert result['confidence'] == 0.95
+            assert isinstance(result['processing_time'], float)
+            assert result['processing_time'] > 0
+    
+    def test_process_image_invalid_input(self, ocr_processor):
+        """Test processing with invalid input."""
+        with pytest.raises(ValueError, match="Input must be numpy array"):
+            ocr_processor.process_image("not_an_array")
+        
+        with pytest.raises(ValueError, match="Empty image provided"):
+            ocr_processor.process_image(np.array([]))
+    
+    def test_process_image_ocr_failure(self, ocr_processor, sample_korean_image):
+        """Test handling of OCR processing failures."""
+        with patch.object(ocr_processor, '_run_ocr_ensemble', 
+                         side_effect=RuntimeError("OCR engine failed")):
+            with pytest.raises(RuntimeError, match="Image processing failed"):
+                ocr_processor.process_image(sample_korean_image)
+    
+    def test_performance_metrics(self, ocr_processor, sample_korean_image):
+        """Test performance metrics tracking."""
+        # Mock successful processing
+        mock_result = {'text': 'test', 'confidence': 0.9, 'detailed_results': []}
+        
+        with patch.object(ocr_processor, '_run_ocr_ensemble', return_value=mock_result):
+            # Process multiple images
+            for _ in range(3):
+                ocr_processor.process_image(sample_korean_image)
+            
+            # Check metrics
+            metrics = ocr_processor.get_performance_metrics()
+            
+            assert metrics['total_processed'] == 3
+            assert metrics['avg_time'] > 0
+            assert metrics['error_rate'] == 0.0
+    
+    @pytest.mark.parametrize("korean_text,expected_length", [
+        ("안녕하세요", 5),
+        ("한글 OCR 테스트", 10),
+        ("", 0),
+    ])
+    def test_korean_text_processing(self, ocr_processor, korean_text, expected_length):
+        """Test processing of various Korean text samples."""
+        # Create test image with Korean text
+        test_image = self.create_text_image(korean_text)
+        
+        mock_result = {
+            'text': korean_text,
+            'confidence': 0.9,
+            'detailed_results': []
+        }
+        
+        with patch.object(ocr_processor, '_run_ocr_ensemble', return_value=mock_result):
+            result = ocr_processor.process_image(test_image)
+            
+            assert len(result['text']) == expected_length
+            assert result['text'] == korean_text
+    
+    def create_text_image(self, text: str) -> np.ndarray:
+        """Helper method to create test images with text."""
+        image = np.zeros((100, 300, 3), dtype=np.uint8)
+        image.fill(255)
+        
+        if text:
+            # Add some visual representation of text
+            cv2.rectangle(image, (10, 30), (len(text) * 20, 70), (0, 0, 0), 2)
+        
+        return image
+
+# ❌ FORBIDDEN: Inadequate testing
+def test_basic():
+    processor = KoreanOCRProcessor()
+    result = processor.process_image(some_image)
+    assert result  # Too generic, no specific validation
+```
+
+## 🎯 MANDATORY CHECKLIST FOR PYTHON CODE
+
+### ✅ BEFORE EVERY COMMIT:
+1. **Type hints**: All functions have complete type annotations
+2. **Docstrings**: All public functions have comprehensive docstrings
+3. **Error handling**: All exceptions are properly caught and handled
+4. **Logging**: All operations are properly logged with context
+5. **Testing**: All new code has corresponding tests
+6. **Memory management**: Large objects are properly cleaned up
+7. **Performance**: No obvious performance bottlenecks introduced
+
+### ❌ COMMIT BLOCKERS:
+1. **Missing type hints** on any public function
+2. **Bare except clauses** (except: without specific exception type)
+3. **Print statements** in production code (use logging instead)
+4. **Memory leaks** in batch processing
+5. **Untested code** paths
+6. **Inconsistent return types** from functions
+7. **Missing error handling** for external dependencies
+
+---
+
+**Remember**: This is a **production-grade Korean OCR system**. Code quality directly impacts system reliability and Korean text processing accuracy.
+description:
+globs:
+alwaysApply: false
+---

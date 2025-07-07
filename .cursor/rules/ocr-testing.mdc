@@ -1,0 +1,507 @@
+# 🧪 OCR Testing Guidelines - Korean OCR Pipeline
+
+## 🎯 MANDATORY TESTING PRINCIPLES
+
+### 1. **Korean Text Testing - ABSOLUTE PRIORITY**
+```python
+# ✅ REQUIRED: Comprehensive Korean text test cases
+KOREAN_TEST_CASES = [
+    # Basic Korean characters
+    "안녕하세요",
+    "한글",
+    "대한민국",
+    
+    # Korean with numbers
+    "전화번호: 010-1234-5678",
+    "주소: 서울시 강남구 123번지",
+    
+    # Korean with English
+    "Hello 안녕하세요 World",
+    "OCR 테스트입니다",
+    
+    # Complex Korean text
+    "이것은 한글 문서 인식 테스트입니다.",
+    "복잡한 레이아웃에서도 정확히 인식되어야 합니다.",
+    
+    # Edge cases
+    "",  # Empty text
+    "ㄱㄴㄷ",  # Individual jamo
+    "한 글",  # Spaced Korean
+    "한글123ABC!@#",  # Mixed characters
+]
+
+@pytest.mark.parametrize("korean_text", KOREAN_TEST_CASES)
+def test_korean_text_recognition(korean_text):
+    """Test Korean text recognition accuracy."""
+    # Create test image with Korean text
+    test_image = create_korean_text_image(korean_text)
+    
+    # Process with OCR
+    result = ocr_processor.process_image(test_image)
+    
+    # Validate Korean text recognition
+    assert isinstance(result['text'], str)
+    
+    if korean_text:  # Non-empty text
+        assert len(result['text']) > 0
+        assert result['confidence'] > 0.7  # Minimum confidence for Korean
+        
+        # Check for Korean character preservation
+        korean_chars_input = count_korean_characters(korean_text)
+        korean_chars_output = count_korean_characters(result['text'])
+        
+        # Allow some tolerance for OCR errors
+        accuracy_ratio = korean_chars_output / max(korean_chars_input, 1)
+        assert accuracy_ratio > 0.8, f"Korean character accuracy too low: {accuracy_ratio}"
+
+# ❌ FORBIDDEN: Generic text testing without Korean specifics
+def bad_test_text():
+    result = ocr_processor.process_image(some_image)
+    assert result['text']  # No Korean-specific validation
+```
+
+### 2. **Performance Testing - MANDATORY BENCHMARKS**
+```python
+# ✅ REQUIRED: Performance testing with PRD compliance
+import time
+import psutil
+import pytest
+
+class TestOCRPerformance:
+    """Performance testing for OCR pipeline."""
+    
+    def test_processing_speed_single_image(self):
+        """Test single image processing speed against PRD requirements."""
+        test_image = load_standard_test_image()
+        
+        start_time = time.time()
+        result = ocr_processor.process_image(test_image)
+        processing_time = time.time() - start_time
+        
+        # PRD requirement: < 5 seconds per image
+        assert processing_time < 5.0, f"Processing too slow: {processing_time:.2f}s"
+        
+        # Current benchmark: < 15 seconds (realistic target)
+        assert processing_time < 15.0, f"Processing exceeds benchmark: {processing_time:.2f}s"
+        
+        # Validate result quality
+        assert result['confidence'] > 0.8
+        assert len(result['text']) > 0
+    
+    def test_batch_processing_performance(self):
+        """Test batch processing performance and memory usage."""
+        test_images = [create_test_image(f"테스트 {i}") for i in range(10)]
+        
+        # Monitor memory usage
+        process = psutil.Process()
+        initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+        
+        start_time = time.time()
+        results = ocr_processor.process_batch(test_images)
+        total_time = time.time() - start_time
+        
+        final_memory = process.memory_info().rss / 1024 / 1024  # MB
+        memory_increase = final_memory - initial_memory
+        
+        # Performance assertions
+        avg_time_per_image = total_time / len(test_images)
+        assert avg_time_per_image < 5.0, f"Batch processing too slow: {avg_time_per_image:.2f}s per image"
+        
+        # Memory usage should not grow excessively
+        assert memory_increase < 500, f"Memory usage too high: {memory_increase:.1f}MB increase"
+        
+        # Validate all results
+        assert len(results) == len(test_images)
+        successful_results = [r for r in results if 'error' not in r]
+        success_rate = len(successful_results) / len(results)
+        assert success_rate > 0.95, f"Success rate too low: {success_rate:.2f}"
+    
+    def test_concurrent_processing(self):
+        """Test concurrent processing stability."""
+        import concurrent.futures
+        
+        test_images = [create_test_image(f"동시 처리 테스트 {i}") for i in range(5)]
+        
+        def process_single(image):
+            return ocr_processor.process_image(image)
+        
+        start_time = time.time()
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(process_single, img) for img in test_images]
+            results = [future.result() for future in futures]
+        
+        total_time = time.time() - start_time
+        
+        # Concurrent processing should be faster than sequential
+        sequential_estimate = len(test_images) * 2.0  # Estimated 2s per image
+        assert total_time < sequential_estimate, f"Concurrent processing not effective: {total_time:.2f}s"
+        
+        # All results should be valid
+        for result in results:
+            assert 'text' in result
+            assert 'confidence' in result
+            assert isinstance(result['processing_time'], float)
+
+# ❌ FORBIDDEN: Performance testing without specific metrics
+def bad_performance_test():
+    start = time.time()
+    result = process_image(image)
+    end = time.time()
+    
+    assert end - start < 100  # Too generous, no specific requirements
+    assert result  # No quality validation
+```
+
+### 3. **Error Handling Testing - COMPREHENSIVE COVERAGE**
+```python
+# ✅ REQUIRED: Comprehensive error scenario testing
+class TestOCRErrorHandling:
+    """Test error handling in various failure scenarios."""
+    
+    def test_invalid_image_inputs(self):
+        """Test handling of invalid image inputs."""
+        error_cases = [
+            (None, "None input"),
+            ([], "Empty list"),
+            ("not_an_image", "String input"),
+            (np.array([]), "Empty numpy array"),
+            (np.zeros((0, 0)), "Zero-dimension array"),
+            (np.zeros((10, 10, 5)), "Invalid channel count"),
+        ]
+        
+        for invalid_input, description in error_cases:
+            with pytest.raises((ValueError, TypeError), match=r".*"):
+                ocr_processor.process_image(invalid_input)
+    
+    def test_corrupted_image_handling(self):
+        """Test handling of corrupted or unreadable images."""
+        # Create corrupted image data
+        corrupted_image = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
+        corrupted_image[50:60, 50:60] = 0  # Create corruption
+        
+        # Should handle gracefully without crashing
+        result = ocr_processor.process_image(corrupted_image)
+        
+        # Should return structured error response
+        assert isinstance(result, dict)
+        assert 'error' in result or 'text' in result
+        assert 'processing_time' in result
+    
+    def test_ocr_engine_failure(self):
+        """Test handling when OCR engines fail."""
+        test_image = create_test_image("테스트")
+        
+        # Mock OCR engine failure
+        with patch.object(ocr_processor, '_run_ocr_ensemble', 
+                         side_effect=RuntimeError("OCR engine crashed")):
+            
+            with pytest.raises(RuntimeError, match="Image processing failed"):
+                ocr_processor.process_image(test_image)
+    
+    def test_memory_exhaustion_handling(self):
+        """Test handling of memory exhaustion scenarios."""
+        # Create very large image
+        large_image = np.zeros((5000, 5000, 3), dtype=np.uint8)
+        large_image.fill(255)
+        
+        # Should handle large images gracefully
+        try:
+            result = ocr_processor.process_image(large_image)
+            # If processing succeeds, validate result
+            assert isinstance(result, dict)
+            assert 'processing_time' in result
+        except (MemoryError, RuntimeError) as e:
+            # If memory error occurs, it should be handled gracefully
+            assert "memory" in str(e).lower() or "processing failed" in str(e).lower()
+    
+    def test_timeout_handling(self):
+        """Test handling of processing timeouts."""
+        # Mock slow processing
+        def slow_ocr_process(image):
+            time.sleep(10)  # Simulate slow processing
+            return {'text': 'slow result', 'confidence': 0.9}
+        
+        with patch.object(ocr_processor, '_run_ocr_ensemble', side_effect=slow_ocr_process):
+            # Should timeout gracefully (if timeout is implemented)
+            start_time = time.time()
+            
+            try:
+                result = ocr_processor.process_image(create_test_image("테스트"))
+                processing_time = time.time() - start_time
+                
+                # Should not take too long
+                assert processing_time < 30, f"Processing took too long: {processing_time:.2f}s"
+                
+            except TimeoutError:
+                # Timeout is acceptable behavior
+                pass
+
+# ❌ FORBIDDEN: Inadequate error testing
+def bad_error_test():
+    try:
+        result = process_image(None)
+        assert False, "Should have raised error"
+    except:
+        pass  # Too generic, no specific error validation
+```
+
+### 4. **Integration Testing - END-TO-END VALIDATION**
+```python
+# ✅ REQUIRED: Complete integration testing
+class TestOCRIntegration:
+    """End-to-end integration testing."""
+    
+    def test_full_pipeline_integration(self):
+        """Test complete OCR pipeline from image to final result."""
+        # Create test image with known Korean text
+        test_text = "한글 OCR 통합 테스트"
+        test_image = create_korean_text_image(test_text)
+        
+        # Process through full pipeline
+        pipeline = KoreanOCRPipeline(use_yolo=False)
+        result = pipeline.process_image(test_image)
+        
+        # Validate complete result structure
+        required_keys = [
+            'text', 'confidence', 'processing_time', 
+            'detailed_results', 'preprocessing_info'
+        ]
+        
+        for key in required_keys:
+            assert key in result, f"Missing required key: {key}"
+        
+        # Validate data types
+        assert isinstance(result['text'], str)
+        assert isinstance(result['confidence'], (int, float))
+        assert isinstance(result['processing_time'], (int, float))
+        assert isinstance(result['detailed_results'], list)
+        
+        # Validate content quality
+        assert result['confidence'] > 0.7
+        assert result['processing_time'] > 0
+        assert len(result['detailed_results']) > 0
+    
+    def test_yolo_integration(self):
+        """Test YOLO text detection integration."""
+        # Create image with multiple text regions
+        test_image = create_multi_region_image([
+            "첫 번째 텍스트",
+            "두 번째 텍스트",
+            "세 번째 텍스트"
+        ])
+        
+        # Process with YOLO enabled
+        pipeline = KoreanOCRPipeline(use_yolo=True)
+        result = pipeline.process_image(test_image)
+        
+        # Should detect multiple regions
+        assert len(result['detailed_results']) >= 2
+        
+        # Each region should have proper structure
+        for region in result['detailed_results']:
+            assert 'text' in region
+            assert 'bbox' in region
+            assert 'confidence' in region
+            assert len(region['bbox']) == 4  # [x1, y1, x2, y2]
+    
+    def test_preprocessing_integration(self):
+        """Test preprocessing integration with OCR."""
+        # Create image that benefits from preprocessing
+        noisy_image = create_noisy_korean_image("전처리 테스트")
+        
+        # Process with and without preprocessing
+        pipeline_with_prep = KoreanOCRPipeline(use_preprocessing=True)
+        pipeline_without_prep = KoreanOCRPipeline(use_preprocessing=False)
+        
+        result_with_prep = pipeline_with_prep.process_image(noisy_image)
+        result_without_prep = pipeline_without_prep.process_image(noisy_image)
+        
+        # Preprocessing should improve results
+        assert result_with_prep['confidence'] >= result_without_prep['confidence']
+        assert len(result_with_prep['text']) >= len(result_without_prep['text'])
+    
+    def test_ensemble_vs_single_engine(self):
+        """Test ensemble approach vs single engine."""
+        test_image = create_test_image("앙상블 테스트")
+        
+        # Test ensemble
+        ensemble_pipeline = KoreanOCRPipeline(use_ensemble=True)
+        ensemble_result = ensemble_pipeline.process_image(test_image)
+        
+        # Test single engine
+        single_pipeline = KoreanOCRPipeline(use_ensemble=False)
+        single_result = single_pipeline.process_image(test_image)
+        
+        # Ensemble should generally perform better
+        assert ensemble_result['confidence'] >= single_result['confidence'] - 0.1
+        
+        # Both should return valid results
+        assert len(ensemble_result['text']) > 0
+        assert len(single_result['text']) > 0
+
+# ❌ FORBIDDEN: Integration testing without end-to-end validation
+def bad_integration_test():
+    result = some_pipeline.process(image)
+    assert result  # No comprehensive validation
+```
+
+### 5. **Regression Testing - PREVENT QUALITY DEGRADATION**
+```python
+# ✅ REQUIRED: Regression testing with baseline comparison
+class TestOCRRegression:
+    """Regression testing to prevent quality degradation."""
+    
+    BASELINE_RESULTS = {
+        "simple_korean.jpg": {
+            "text": "안녕하세요",
+            "confidence": 0.95,
+            "processing_time_max": 3.0
+        },
+        "complex_document.jpg": {
+            "text": "복잡한 한글 문서입니다",
+            "confidence": 0.88,
+            "processing_time_max": 8.0
+        }
+    }
+    
+    @pytest.mark.parametrize("test_case,baseline", BASELINE_RESULTS.items())
+    def test_regression_against_baseline(self, test_case, baseline):
+        """Test current performance against established baselines."""
+        test_image = load_test_image(test_case)
+        
+        start_time = time.time()
+        result = ocr_processor.process_image(test_image)
+        processing_time = time.time() - start_time
+        
+        # Performance should not regress
+        assert processing_time <= baseline["processing_time_max"] * 1.2, \
+            f"Processing time regression: {processing_time:.2f}s > {baseline['processing_time_max']:.2f}s"
+        
+        # Accuracy should not regress
+        assert result['confidence'] >= baseline["confidence"] - 0.05, \
+            f"Confidence regression: {result['confidence']:.2f} < {baseline['confidence']:.2f}"
+        
+        # Text similarity should be maintained
+        similarity = calculate_text_similarity(result['text'], baseline['text'])
+        assert similarity > 0.8, f"Text similarity regression: {similarity:.2f}"
+    
+    def test_performance_trend_analysis(self):
+        """Test performance trends over time."""
+        test_images = [
+            create_test_image(f"성능 테스트 {i}") 
+            for i in range(20)
+        ]
+        
+        processing_times = []
+        confidences = []
+        
+        for image in test_images:
+            start_time = time.time()
+            result = ocr_processor.process_image(image)
+            processing_time = time.time() - start_time
+            
+            processing_times.append(processing_time)
+            confidences.append(result['confidence'])
+        
+        # Calculate statistics
+        avg_time = sum(processing_times) / len(processing_times)
+        avg_confidence = sum(confidences) / len(confidences)
+        
+        # Performance should be consistent
+        assert avg_time < 5.0, f"Average processing time too high: {avg_time:.2f}s"
+        assert avg_confidence > 0.8, f"Average confidence too low: {avg_confidence:.2f}"
+        
+        # Variance should be reasonable
+        time_variance = np.var(processing_times)
+        confidence_variance = np.var(confidences)
+        
+        assert time_variance < 4.0, f"Processing time too variable: {time_variance:.2f}"
+        assert confidence_variance < 0.01, f"Confidence too variable: {confidence_variance:.4f}"
+
+# ❌ FORBIDDEN: No regression testing
+# Missing baseline comparisons and performance trend analysis
+```
+
+## 🎯 TESTING UTILITIES AND HELPERS
+
+### Test Data Creation
+```python
+# ✅ REQUIRED: Comprehensive test data creation utilities
+def create_korean_text_image(text: str, 
+                           font_size: int = 24,
+                           image_size: Tuple[int, int] = (300, 100)) -> np.ndarray:
+    """Create test image with Korean text."""
+    from PIL import Image, ImageDraw, ImageFont
+    
+    # Create white background
+    img = Image.new('RGB', image_size, color='white')
+    draw = ImageDraw.Draw(img)
+    
+    # Try to use Korean font
+    try:
+        font = ImageFont.truetype("NanumGothic.ttf", font_size)
+    except:
+        font = ImageFont.load_default()
+    
+    # Calculate text position
+    text_width, text_height = draw.textsize(text, font=font)
+    x = (image_size[0] - text_width) // 2
+    y = (image_size[1] - text_height) // 2
+    
+    # Draw text
+    draw.text((x, y), text, fill='black', font=font)
+    
+    # Convert to numpy array
+    return np.array(img)
+
+def create_noisy_korean_image(text: str, noise_level: float = 0.1) -> np.ndarray:
+    """Create noisy Korean text image for preprocessing testing."""
+    clean_image = create_korean_text_image(text)
+    
+    # Add noise
+    noise = np.random.normal(0, noise_level * 255, clean_image.shape)
+    noisy_image = np.clip(clean_image + noise, 0, 255).astype(np.uint8)
+    
+    return noisy_image
+
+def count_korean_characters(text: str) -> int:
+    """Count Korean characters in text."""
+    korean_count = 0
+    for char in text:
+        if '\uac00' <= char <= '\ud7af':  # Korean syllables
+            korean_count += 1
+    return korean_count
+
+def calculate_text_similarity(text1: str, text2: str) -> float:
+    """Calculate similarity between two text strings."""
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, text1, text2).ratio()
+```
+
+## 🎯 MANDATORY TESTING CHECKLIST
+
+### ✅ BEFORE EVERY COMMIT:
+1. **Korean text accuracy**: All Korean test cases pass
+2. **Performance benchmarks**: Processing time within limits
+3. **Error handling**: All error scenarios covered
+4. **Memory management**: No memory leaks in batch processing
+5. **Integration tests**: End-to-end pipeline works correctly
+6. **Regression tests**: No performance degradation
+7. **Edge cases**: Empty inputs, corrupted data, etc.
+
+### ❌ TESTING BLOCKERS:
+1. **Failing Korean text recognition** tests
+2. **Performance regression** beyond acceptable limits
+3. **Unhandled exceptions** in error scenarios
+4. **Memory leaks** in batch processing
+5. **Missing test coverage** for new functionality
+6. **Inconsistent test results** (flaky tests)
+
+---
+
+**Remember**: Testing is critical for a **production Korean OCR system**. Comprehensive testing ensures reliability and maintains Korean text processing quality.
+description:
+globs:
+alwaysApply: false
+---

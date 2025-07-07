@@ -1,0 +1,420 @@
+# 🔄 Git Workflow Standards - Korean OCR Pipeline
+
+## 🎯 MANDATORY COMMIT STANDARDS
+
+### 1. **Commit Message Format - STRICT REQUIREMENTS**
+```bash
+# ✅ REQUIRED: Conventional commit format with Korean context
+<type>(<scope>): <description>
+
+[optional body with Korean-specific details]
+
+[optional footer with Korean test results]
+
+# Examples:
+feat(korean-ocr): add jongseong enhancement preprocessing
+fix(ensemble): resolve PaddleOCR API compatibility issue
+docs(korean): update Korean text recognition examples
+test(korean): add comprehensive Korean character test cases
+perf(preprocessing): optimize Korean stroke preservation algorithm
+```
+
+### 2. **Commit Types - KOREAN OCR SPECIFIC**
+```bash
+# ✅ REQUIRED: Use appropriate commit types
+feat:     # New Korean OCR features
+fix:      # Bug fixes affecting Korean text processing
+docs:     # Documentation updates (especially Korean examples)
+test:     # Korean-specific test additions/updates
+perf:     # Performance improvements for Korean processing
+refactor: # Code restructuring without functionality changes
+style:    # Code formatting (no Korean processing impact)
+chore:    # Maintenance tasks (dependencies, setup)
+
+# Korean OCR specific scopes:
+korean-ocr:     # Core Korean OCR functionality
+ensemble:       # Ensemble OCR engine
+preprocessing:  # Korean preprocessing
+yolo:          # YOLO text detection
+utils:         # Utility functions
+benchmark:     # Performance benchmarking
+docs:          # Documentation
+tests:         # Test suite
+```
+
+### 3. **Pre-Commit Requirements - MANDATORY CHECKS**
+```bash
+# ✅ REQUIRED: Pre-commit checklist (automated)
+#!/bin/bash
+# .git/hooks/pre-commit
+
+echo "🔍 Running Korean OCR pre-commit checks..."
+
+# 1. Korean text recognition tests
+echo "Testing Korean text recognition..."
+python -m pytest test_ocr.py::test_korean_text_recognition -v
+if [ $? -ne 0 ]; then
+    echo "❌ Korean text recognition tests failed"
+    exit 1
+fi
+
+# 2. Performance benchmarks
+echo "Checking performance benchmarks..."
+python benchmark.py --quick-test
+if [ $? -ne 0 ]; then
+    echo "❌ Performance benchmarks failed"
+    exit 1
+fi
+
+# 3. Code quality checks
+echo "Running code quality checks..."
+python -m flake8 *.py --max-line-length=100
+if [ $? -ne 0 ]; then
+    echo "❌ Code quality checks failed"
+    exit 1
+fi
+
+# 4. Type checking
+echo "Running type checks..."
+python -m mypy main.py ensemble_ocr.py preprocessor.py --ignore-missing-imports
+if [ $? -ne 0 ]; then
+    echo "❌ Type checking failed"
+    exit 1
+fi
+
+# 5. Documentation updates
+echo "Checking documentation consistency..."
+if git diff --cached --name-only | grep -E '\.(py)$' > /dev/null; then
+    echo "⚠️  Python files changed. Please update relevant documentation."
+    echo "   - Update README.md if API changed"
+    echo "   - Update docs/ if new features added"
+    echo "   - Update Korean examples if Korean processing changed"
+fi
+
+echo "✅ All pre-commit checks passed!"
+
+# ❌ FORBIDDEN: Committing without checks
+# git commit -m "quick fix" --no-verify  # Never bypass checks
+```
+
+### 4. **Branch Naming - DESCRIPTIVE CONVENTIONS**
+```bash
+# ✅ REQUIRED: Descriptive branch names with Korean context
+feature/korean-preprocessing-optimization
+feature/ensemble-confidence-weighting
+feature/yolo-korean-text-detection
+fix/korean-character-encoding-issue
+fix/memory-leak-batch-processing
+docs/korean-usage-examples
+test/korean-accuracy-benchmarks
+perf/gpu-acceleration-korean-ocr
+refactor/preprocessing-pipeline-cleanup
+
+# Branch naming pattern:
+<type>/<korean-context>-<specific-feature>
+
+# ❌ FORBIDDEN: Vague branch names
+feature/new-stuff
+fix/bug
+update/docs
+temp/test
+```
+
+### 5. **Pull Request Standards - COMPREHENSIVE REVIEWS**
+```markdown
+# ✅ REQUIRED: PR template with Korean OCR focus
+## 🇰🇷 Korean OCR Pipeline - Pull Request
+
+### 📋 Summary
+Brief description of changes with Korean text processing impact.
+
+### 🎯 Type of Change
+- [ ] 🆕 New Korean OCR feature
+- [ ] 🐛 Bug fix (Korean text processing)
+- [ ] 📚 Documentation update (Korean examples)
+- [ ] 🧪 Test addition (Korean text cases)
+- [ ] ⚡ Performance improvement (Korean processing)
+- [ ] 🔧 Refactoring (no Korean processing impact)
+
+### 🇰🇷 Korean Text Impact
+- [ ] Affects Korean character recognition accuracy
+- [ ] Changes Korean preprocessing behavior
+- [ ] Modifies ensemble OCR for Korean text
+- [ ] Impacts Korean text detection (YOLO)
+- [ ] No Korean-specific impact
+
+### 🧪 Testing Checklist
+- [ ] Korean text recognition tests pass
+- [ ] Performance benchmarks within limits
+- [ ] Memory usage tests pass
+- [ ] Error handling tests pass
+- [ ] Integration tests pass
+- [ ] Regression tests pass
+
+### 📊 Performance Impact
+**Before:**
+- Processing time: X.XX seconds
+- Korean accuracy: XX%
+- Memory usage: XXX MB
+
+**After:**
+- Processing time: X.XX seconds
+- Korean accuracy: XX%
+- Memory usage: XXX MB
+
+### 🇰🇷 Korean Test Results
+```bash
+# Include Korean-specific test results
+python -m pytest test_ocr.py::test_korean_text_recognition -v
+========================= test session starts =========================
+test_korean_text_recognition[안녕하세요] PASSED
+test_korean_text_recognition[한글] PASSED
+test_korean_text_recognition[대한민국] PASSED
+========================= 3 passed in 2.45s =========================
+```
+
+### 📚 Documentation Updates
+- [ ] README.md updated with Korean examples
+- [ ] API documentation updated
+- [ ] Korean usage guide updated
+- [ ] Performance metrics updated
+- [ ] Troubleshooting guide updated
+
+### 🔗 Related Issues
+Closes #XXX
+Related to #XXX
+
+### 📝 Additional Notes
+Any additional context about Korean text processing changes.
+
+# ❌ FORBIDDEN: Generic PR without Korean context
+## Pull Request
+Changed some stuff.
+- Fixed bug
+- Updated code
+- Added feature
+# No Korean-specific context, testing, or impact assessment
+```
+
+## 🎯 BRANCHING STRATEGY
+
+### 1. **Main Branch Protection - STRICT RULES**
+```bash
+# ✅ REQUIRED: Main branch protection settings
+# - Require PR reviews (minimum 1)
+# - Require status checks to pass
+# - Require Korean text tests to pass
+# - Require performance benchmarks to pass
+# - Dismiss stale reviews when new commits pushed
+# - Require administrators to follow rules
+
+# Protected branches:
+main:           # Production-ready Korean OCR code
+develop:        # Integration branch for Korean features
+release/*:      # Release preparation branches
+hotfix/*:       # Critical Korean OCR bug fixes
+```
+
+### 2. **Feature Development Flow - KOREAN OCR FOCUSED**
+```bash
+# ✅ REQUIRED: Feature development workflow
+# 1. Create feature branch from develop
+git checkout develop
+git pull origin develop
+git checkout -b feature/korean-preprocessing-enhancement
+
+# 2. Develop with Korean focus
+# - Add Korean-specific functionality
+# - Write Korean text tests
+# - Update Korean documentation
+# - Test with Korean sample data
+
+# 3. Commit with Korean context
+git add .
+git commit -m "feat(korean-ocr): enhance jongseong recognition accuracy
+
+- Improve final consonant detection algorithm
+- Add Korean-specific morphological operations
+- Increase Korean text accuracy by 3%
+
+Korean test results:
+- 안녕하세요: 98% accuracy (was 95%)
+- 대한민국: 97% accuracy (was 94%)
+- Processing time: 8.2s (was 8.5s)"
+
+# 4. Push and create PR
+git push origin feature/korean-preprocessing-enhancement
+# Create PR with Korean OCR template
+
+# 5. Code review with Korean focus
+# - Review Korean text processing logic
+# - Validate Korean test coverage
+# - Check performance impact on Korean text
+# - Verify documentation updates
+
+# 6. Merge after approval
+git checkout develop
+git merge --no-ff feature/korean-preprocessing-enhancement
+git push origin develop
+```
+
+### 3. **Release Process - KOREAN OCR VALIDATION**
+```bash
+# ✅ REQUIRED: Release preparation with Korean validation
+# 1. Create release branch
+git checkout develop
+git checkout -b release/v1.2.0
+
+# 2. Korean OCR validation
+python benchmark.py --comprehensive-korean-test
+python test_ocr.py -v --korean-focus
+python -m pytest test_ocr.py::TestKoreanOCRRegression -v
+
+# 3. Update version and Korean documentation
+# - Update version in setup.py
+# - Update Korean performance metrics in README
+# - Update Korean examples in docs/
+# - Update Korean test results in PRD
+
+# 4. Final Korean OCR testing
+python main_simple.py test_korean.jpg
+python main.py sample_korean_document.jpg --ensemble
+
+# 5. Create release PR
+# - Include Korean performance benchmarks
+# - Include Korean accuracy improvements
+# - Include Korean documentation updates
+
+# 6. Merge to main after approval
+git checkout main
+git merge --no-ff release/v1.2.0
+git tag -a v1.2.0 -m "Korean OCR Pipeline v1.2.0
+
+Major improvements:
+- Enhanced Korean character recognition accuracy
+- Improved jongseong detection algorithm
+- Optimized Korean preprocessing pipeline
+- Added comprehensive Korean test suite
+
+Performance:
+- Korean accuracy: 92% (was 88%)
+- Processing time: 8.2s (was 9.1s)
+- Memory usage: 450MB (was 520MB)"
+
+git push origin main --tags
+```
+
+## 🎯 COMMIT QUALITY STANDARDS
+
+### 1. **Atomic Commits - SINGLE RESPONSIBILITY**
+```bash
+# ✅ REQUIRED: One logical change per commit
+# Good: Single Korean OCR improvement
+git commit -m "feat(korean-ocr): improve jongseong detection accuracy
+
+- Enhanced morphological operations for Korean final consonants
+- Added specialized filters for ㄱ, ㄴ, ㄷ, ㄹ, ㅁ, ㅂ, ㅅ, ㅇ, ㅈ, ㅊ, ㅋ, ㅌ, ㅍ, ㅎ
+- Increased Korean text accuracy by 2.5%
+
+Test results:
+- 받침 characters: 95% accuracy (was 92%)
+- Processing time: +0.1s (acceptable trade-off)"
+
+# ❌ FORBIDDEN: Multiple unrelated changes
+git commit -m "fix stuff
+
+- Fixed Korean OCR bug
+- Updated documentation
+- Refactored preprocessing
+- Added new feature
+- Changed dependencies"
+```
+
+### 2. **Descriptive Commit Bodies - KOREAN CONTEXT**
+```bash
+# ✅ REQUIRED: Detailed commit body with Korean specifics
+git commit -m "perf(ensemble): optimize Korean text confidence weighting
+
+The ensemble OCR was not properly weighting Korean text confidence
+scores, leading to suboptimal results for Korean documents.
+
+Changes:
+- Implement Korean-specific confidence weighting algorithm
+- Add morphological complexity scoring for Korean characters
+- Adjust EasyOCR vs PaddleOCR weight ratios for Korean text
+- Add Korean text complexity analysis
+
+Performance impact:
+- Korean accuracy: 91% → 94% (+3%)
+- Processing time: 9.2s → 8.8s (-0.4s)
+- Memory usage: unchanged
+
+Korean test cases:
+- Simple Korean: 97% accuracy (was 94%)
+- Complex Korean: 92% accuracy (was 88%)
+- Mixed Korean/English: 89% accuracy (was 85%)
+
+Closes #45"
+
+# ❌ FORBIDDEN: Vague commit message
+git commit -m "optimize ensemble"
+```
+
+### 3. **Commit Frequency - REGULAR PROGRESS**
+```bash
+# ✅ REQUIRED: Regular commits with Korean progress
+# Daily development pattern:
+git commit -m "feat(korean-ocr): add initial jongseong detection logic"
+git commit -m "test(korean): add comprehensive jongseong test cases"
+git commit -m "fix(korean-ocr): resolve jongseong detection edge cases"
+git commit -m "docs(korean): update jongseong enhancement documentation"
+git commit -m "perf(korean-ocr): optimize jongseong detection performance"
+
+# ❌ FORBIDDEN: Infrequent massive commits
+git commit -m "implement entire Korean OCR enhancement feature"
+# (contains 500+ lines of changes across multiple files)
+```
+
+## 🎯 MANDATORY GIT CHECKLIST
+
+### ✅ BEFORE EVERY COMMIT:
+1. **Korean tests pass**: All Korean text recognition tests pass
+2. **Performance benchmarks**: Korean processing within time limits
+3. **Code quality**: Linting and type checking pass
+4. **Documentation**: Korean examples and docs updated
+5. **Atomic changes**: Single logical change per commit
+6. **Descriptive message**: Clear Korean context in commit message
+7. **No secrets**: No API keys, credentials, or sensitive data
+
+### ✅ BEFORE EVERY PUSH:
+1. **Local tests**: Full Korean OCR test suite passes
+2. **Performance check**: Korean processing performance validated
+3. **Documentation sync**: All Korean docs up to date
+4. **Clean history**: No merge commits in feature branches
+5. **Proper branch**: Pushing to correct branch
+6. **Korean examples**: All Korean code examples work
+
+### ✅ BEFORE EVERY MERGE:
+1. **PR review**: Korean OCR expert review completed
+2. **CI/CD passes**: All Korean tests pass in CI
+3. **Performance validation**: Korean benchmarks within limits
+4. **Documentation review**: Korean docs reviewed and approved
+5. **Conflict resolution**: All merge conflicts resolved properly
+6. **Korean regression**: No Korean accuracy degradation
+
+### ❌ GIT WORKFLOW BLOCKERS:
+1. **Failing Korean tests** in any commit
+2. **Performance regression** beyond acceptable limits
+3. **Missing Korean documentation** for new features
+4. **Vague commit messages** without Korean context
+5. **Massive commits** with multiple unrelated changes
+6. **Broken Korean examples** in documentation
+7. **Bypassing pre-commit hooks** with --no-verify
+
+---
+
+**Remember**: Git workflow discipline is essential for **production Korean OCR system**. Every commit should advance Korean text processing capabilities while maintaining system stability and documentation quality.
+description:
+globs:
+alwaysApply: false
+---

@@ -1,0 +1,449 @@
+# 🇰🇷 Korean OCR Pipeline - Core Development Guidelines
+
+## 📋 PROJECT CONTEXT & ARCHITECTURE
+
+### Core System Overview
+This is a **Korean-specialized OCR pipeline** combining multiple OCR engines (EasyOCR + PaddleOCR) with YOLO text detection. The system is designed for **high-accuracy Korean text recognition** with advanced preprocessing and ensemble methods.
+
+**Key Files:**
+- [main.py](mdc:main.py) - Main pipeline orchestrator with KoreanOCRPipeline class
+- [ensemble_ocr.py](mdc:ensemble_ocr.py) - Ensemble OCR engine combining EasyOCR + PaddleOCR
+- [preprocessor.py](mdc:preprocessor.py) - Korean-specific image preprocessing
+- [yolo_ocr.py](mdc:yolo_ocr.py) - YOLO-based text detection integration
+- [utils.py](mdc:utils.py) - Performance analysis and visualization tools
+
+**Documentation:**
+- [README.md](mdc:README.md) - Main project documentation
+- [docs/](mdc:docs/) - Comprehensive documentation center
+
+## 🎯 CRITICAL REQUIREMENTS (MUST FOLLOW)
+
+### 1. **KOREAN TEXT OPTIMIZATION - ABSOLUTE PRIORITY**
+```python
+# ✅ ALWAYS: Use Korean-specific preprocessing
+from preprocessor import KoreanOCRPreprocessor
+preprocessor = KoreanOCRPreprocessor()
+processed = preprocessor.preprocess_korean(image)
+
+# ❌ NEVER: Skip Korean-specific preprocessing for Korean text
+# This will result in poor accuracy for Korean characters
+```
+
+### 2. **ENSEMBLE APPROACH - MANDATORY**
+```python
+# ✅ ALWAYS: Use ensemble for production code
+from ensemble_ocr import EnsembleOCR
+ensemble = EnsembleOCR()
+result = ensemble.process_image(image)
+
+# ❌ NEVER: Use single OCR engine for final results
+# Single engines have lower accuracy than ensemble
+```
+
+### 3. **ERROR HANDLING - NON-NEGOTIABLE**
+```python
+# ✅ ALWAYS: Implement comprehensive error handling
+try:
+    result = pipeline.process_image(image_path)
+    if not result or 'text' not in result:
+        raise ValueError("OCR processing failed")
+except Exception as e:
+    logger.error(f"OCR error: {str(e)}")
+    return {"error": str(e), "text": "", "confidence": 0.0}
+
+# ❌ NEVER: Let OCR operations fail silently
+# This leads to data loss and debugging nightmares
+```
+
+### 4. **PERFORMANCE MONITORING - REQUIRED**
+```python
+# ✅ ALWAYS: Track processing time and confidence
+import time
+start_time = time.time()
+result = process_image(image)
+result['processing_time'] = time.time() - start_time
+result['confidence'] = calculate_confidence(result)
+
+# ❌ NEVER: Return results without performance metrics
+# Metrics are essential for optimization and debugging
+```
+
+## 🚫 CRITICAL PROHIBITIONS (NEVER DO)
+
+### 1. **NEVER modify core OCR engine configurations without testing**
+```python
+# ❌ FORBIDDEN: Changing OCR parameters without validation
+easyocr_reader = easyocr.Reader(['ko', 'en'], gpu=True, 
+                               width_ths=0.7,  # DON'T change without testing
+                               height_ths=0.7) # DON'T change without testing
+
+# ✅ CORRECT: Test parameter changes systematically
+# Use benchmark.py to validate any parameter modifications
+```
+
+### 2. **NEVER ignore GPU availability detection**
+```python
+# ❌ FORBIDDEN: Hardcoding GPU usage
+import torch
+use_gpu = True  # This will crash on non-GPU systems
+
+# ✅ CORRECT: Always check GPU availability
+from gpu_config import GPUConfig
+gpu_config = GPUConfig()
+use_gpu = gpu_config.is_available()
+```
+
+### 3. **NEVER skip image validation**
+```python
+# ❌ FORBIDDEN: Processing without validation
+def process_image(image_path):
+    image = cv2.imread(image_path)
+    return ocr_engine.process(image)  # What if image is None?
+
+# ✅ CORRECT: Always validate input
+def process_image(image_path):
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image not found: {image_path}")
+    
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError(f"Cannot read image: {image_path}")
+    
+    return ocr_engine.process(image)
+```
+
+### 4. **NEVER return inconsistent data structures**
+```python
+# ❌ FORBIDDEN: Inconsistent return formats
+def process_image(image):
+    if error:
+        return None  # Inconsistent with success case
+    return {"text": "result", "confidence": 0.95}
+
+# ✅ CORRECT: Always return consistent structure
+def process_image(image):
+    base_result = {
+        "text": "",
+        "confidence": 0.0,
+        "processing_time": 0.0,
+        "error": None,
+        "detailed_results": []
+    }
+    
+    try:
+        # Process image...
+        base_result.update({"text": result, "confidence": conf})
+    except Exception as e:
+        base_result["error"] = str(e)
+    
+    return base_result
+```
+
+## 🎯 ADVANCED OPTIMIZATION PATTERNS
+
+### 1. **Chain of Responsibility for Preprocessing**
+```python
+# ✅ RECOMMENDED: Modular preprocessing pipeline
+class PreprocessingChain:
+    def __init__(self):
+        self.steps = [
+            self.resize_image,
+            self.enhance_contrast,
+            self.preserve_korean_strokes,
+            self.enhance_jongseong
+        ]
+    
+    def process(self, image):
+        for step in self.steps:
+            image = step(image)
+            if image is None:
+                raise ValueError(f"Preprocessing failed at {step.__name__}")
+        return image
+```
+
+### 2. **Strategy Pattern for OCR Engine Selection**
+```python
+# ✅ RECOMMENDED: Dynamic OCR engine selection
+class OCRStrategy:
+    def select_engine(self, image_characteristics):
+        if image_characteristics['has_complex_layout']:
+            return 'yolo_ocr'
+        elif image_characteristics['text_density'] > 0.7:
+            return 'ensemble'
+        else:
+            return 'easyocr'
+```
+
+### 3. **Observer Pattern for Performance Monitoring**
+```python
+# ✅ RECOMMENDED: Real-time performance tracking
+class PerformanceObserver:
+    def __init__(self):
+        self.metrics = []
+    
+    def notify(self, stage, duration, accuracy):
+        self.metrics.append({
+            'stage': stage,
+            'duration': duration,
+            'accuracy': accuracy,
+            'timestamp': time.time()
+        })
+```
+
+## 📊 TESTING & VALIDATION REQUIREMENTS
+
+### 1. **MANDATORY: Unit Tests for All Core Functions**
+```python
+# ✅ REQUIRED: Test coverage for critical functions
+def test_korean_preprocessing():
+    # Test with various Korean text samples
+    test_cases = [
+        "안녕하세요",  # Basic Korean
+        "한글 문서 처리",  # Korean with spaces
+        "123 한글 ABC",  # Mixed content
+    ]
+    
+    for test_case in test_cases:
+        result = preprocessor.preprocess_korean(create_test_image(test_case))
+        assert result is not None
+        assert result.shape[0] > 0 and result.shape[1] > 0
+```
+
+### 2. **MANDATORY: Integration Tests**
+```python
+# ✅ REQUIRED: End-to-end pipeline testing
+def test_full_pipeline():
+    pipeline = KoreanOCRPipeline()
+    test_image = "test_korean.jpg"
+    
+    result = pipeline.process_image(test_image)
+    
+    # Validate result structure
+    required_keys = ['text', 'confidence', 'processing_time', 'detailed_results']
+    for key in required_keys:
+        assert key in result
+    
+    # Validate performance requirements
+    assert result['processing_time'] < 15.0  # Max 15 seconds
+    assert result['confidence'] > 0.8  # Min 80% confidence
+```
+
+### 3. **MANDATORY: Performance Benchmarking**
+```python
+# ✅ REQUIRED: Regular performance validation
+from benchmark import OCRBenchmark
+
+def validate_prd_compliance():
+    benchmark = OCRBenchmark()
+    test_images = ["test1.jpg", "test2.jpg", "test3.jpg"]
+    
+    results = benchmark.run_prd_compliance_test(test_images)
+    
+    # Validate PRD requirements
+    assert results['avg_processing_time'] < 5.0  # PRD requirement
+    assert results['accuracy'] > 0.95  # PRD requirement
+    assert results['success_rate'] > 0.95  # PRD requirement
+```
+
+## 🔧 CODE QUALITY STANDARDS
+
+### 1. **MANDATORY: Type Hints**
+```python
+# ✅ REQUIRED: Always use type hints
+from typing import Dict, List, Optional, Union
+import numpy as np
+
+def process_image(image_path: str, 
+                 use_yolo: bool = False) -> Dict[str, Union[str, float, List]]:
+    """
+    Process image with OCR pipeline.
+    
+    Args:
+        image_path: Path to input image
+        use_yolo: Whether to use YOLO text detection
+        
+    Returns:
+        Dictionary containing OCR results with guaranteed structure
+    """
+    pass
+```
+
+### 2. **MANDATORY: Comprehensive Docstrings**
+```python
+# ✅ REQUIRED: Detailed docstrings with examples
+def preprocess_korean(self, image: np.ndarray) -> np.ndarray:
+    """
+    Apply Korean-specific preprocessing to enhance OCR accuracy.
+    
+    This method applies a series of Korean-optimized preprocessing steps:
+    1. Preserve Korean character strokes
+    2. Enhance jongseong (final consonants)
+    3. Prevent jamo separation
+    4. Apply Sauvola thresholding
+    
+    Args:
+        image: Input image as numpy array (H, W, C) or (H, W)
+        
+    Returns:
+        Preprocessed image optimized for Korean OCR
+        
+    Raises:
+        ValueError: If image is None or has invalid dimensions
+        
+    Example:
+        >>> preprocessor = KoreanOCRPreprocessor()
+        >>> processed = preprocessor.preprocess_korean(image)
+        >>> assert processed.shape == image.shape[:2]  # Grayscale output
+    """
+    pass
+```
+
+### 3. **MANDATORY: Error Context**
+```python
+# ✅ REQUIRED: Contextual error messages
+try:
+    result = ocr_engine.process(image)
+except Exception as e:
+    error_context = {
+        'function': 'process_image',
+        'image_path': image_path,
+        'image_shape': image.shape if image is not None else None,
+        'ocr_engine': type(ocr_engine).__name__,
+        'error_type': type(e).__name__,
+        'error_message': str(e)
+    }
+    logger.error(f"OCR processing failed: {error_context}")
+    raise ValueError(f"OCR failed for {image_path}: {str(e)}") from e
+```
+
+## 📈 PERFORMANCE OPTIMIZATION RULES
+
+### 1. **MANDATORY: Memory Management**
+```python
+# ✅ REQUIRED: Explicit memory cleanup
+def process_large_batch(image_paths: List[str]):
+    results = []
+    
+    for i, image_path in enumerate(image_paths):
+        try:
+            image = cv2.imread(image_path)
+            result = process_image(image)
+            results.append(result)
+            
+            # Explicit cleanup for large batches
+            del image
+            if i % 10 == 0:
+                gc.collect()  # Force garbage collection
+                
+        except Exception as e:
+            logger.error(f"Failed to process {image_path}: {e}")
+            results.append({"error": str(e), "text": ""})
+    
+    return results
+```
+
+### 2. **MANDATORY: Parallel Processing Patterns**
+```python
+# ✅ REQUIRED: Thread-safe parallel processing
+from concurrent.futures import ThreadPoolExecutor
+import threading
+
+class ThreadSafeOCR:
+    def __init__(self):
+        self._local = threading.local()
+    
+    def get_ocr_engine(self):
+        if not hasattr(self._local, 'ocr_engine'):
+            self._local.ocr_engine = EasyOCR(['ko', 'en'])
+        return self._local.ocr_engine
+    
+    def process_batch(self, image_paths: List[str]) -> List[Dict]:
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(self.process_single, path) 
+                      for path in image_paths]
+            return [future.result() for future in futures]
+```
+
+## 🎯 DEPLOYMENT & PRODUCTION RULES
+
+### 1. **MANDATORY: Environment Configuration**
+```python
+# ✅ REQUIRED: Environment-specific settings
+import os
+from enum import Enum
+
+class Environment(Enum):
+    DEVELOPMENT = "development"
+    PRODUCTION = "production"
+    TESTING = "testing"
+
+def get_ocr_config():
+    env = os.getenv('OCR_ENV', 'development')
+    
+    if env == Environment.PRODUCTION.value:
+        return {
+            'use_gpu': True,
+            'batch_size': 8,
+            'timeout': 30,
+            'max_retries': 3
+        }
+    else:
+        return {
+            'use_gpu': False,
+            'batch_size': 2,
+            'timeout': 60,
+            'max_retries': 1
+        }
+```
+
+### 2. **MANDATORY: Logging Configuration**
+```python
+# ✅ REQUIRED: Structured logging
+import logging
+import json
+
+class OCRLogger:
+    def __init__(self):
+        self.logger = logging.getLogger('korean_ocr')
+        
+    def log_processing(self, image_path: str, result: Dict):
+        log_data = {
+            'timestamp': time.time(),
+            'image_path': image_path,
+            'processing_time': result.get('processing_time', 0),
+            'confidence': result.get('confidence', 0),
+            'text_length': len(result.get('text', '')),
+            'error': result.get('error')
+        }
+        
+        if log_data['error']:
+            self.logger.error(f"OCR_PROCESSING_ERROR: {json.dumps(log_data)}")
+        else:
+            self.logger.info(f"OCR_PROCESSING_SUCCESS: {json.dumps(log_data)}")
+```
+
+## 🎯 FINAL CHECKLIST BEFORE ANY COMMIT
+
+### ✅ MANDATORY PRE-COMMIT CHECKS:
+1. **Run all tests**: `python -m pytest test_ocr.py -v`
+2. **Check Korean text accuracy**: Test with sample Korean documents
+3. **Validate performance**: Ensure processing time < 15 seconds per image
+4. **Memory leak check**: Run batch processing test
+5. **Error handling**: Test with invalid/corrupted images
+6. **Documentation**: Update relevant docs/ files if needed
+
+### ❌ COMMIT BLOCKERS:
+1. **Any failing tests**
+2. **Processing time > 15 seconds for standard images**
+3. **Memory leaks in batch processing**
+4. **Unhandled exceptions**
+5. **Missing type hints on new functions**
+6. **Inconsistent return data structures**
+
+---
+
+**Remember**: This is a **Korean-specialized OCR system**. Every decision should prioritize Korean text accuracy and processing efficiency. When in doubt, refer to the [docs/](mdc:docs/) for detailed requirements and current project status.
+description:
+globs:
+alwaysApply: false
+---
