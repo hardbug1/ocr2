@@ -12,6 +12,10 @@ import cv2
 import easyocr
 from preprocessor import KoreanOCRPreprocessor
 from gpu_config import GPUConfig
+from mps_warning_fix import suppress_mps_warnings, mps_safe_environment
+
+# MPS 경고 억제
+suppress_mps_warnings()
 
 class SimpleKoreanOCRPipeline:
     """Simplified Korean OCR pipeline using EasyOCR only with MPS/CUDA support"""
@@ -62,9 +66,10 @@ class SimpleKoreanOCRPipeline:
         cv2.imwrite(preprocessed_path, preprocessed)
         print("✅ 전처리 완료")
         
-        # Perform OCR
+        # Perform OCR (MPS 안전 환경에서)
         print("OCR 실행 중...")
-        results = self.reader.readtext(preprocessed_path)
+        with mps_safe_environment():
+            results = self.reader.readtext(preprocessed_path)
         
         # Process results
         processed_results = []
